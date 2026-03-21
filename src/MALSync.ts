@@ -921,12 +921,12 @@ ACTION: ${action} | ANIME: ${title}
 			const title = anime.title?.userPreferred || malId.toString();
 
 			addLog(`Auto-Syncing: ${title}...`, "info");
-			
-			try {
-				await $_wait(1000);
 
-				const entry = await ctx.anime.getAnimeEntry(e.mediaId);
-				const aniItem = entry.listData; 
+			const entry = await ctx.anime.getAnimeEntry(e.mediaId);
+			const aniItem = entry.listData;
+
+			try {
+				await $_wait(1000); 
 
 				const fieldsParam = "fields=list_status{status,score,num_episodes_watched,is_rewatching,num_times_rewatched}";
 				const url = `${BASE_URI_V2}/anime/${malId}?${fieldsParam}`;

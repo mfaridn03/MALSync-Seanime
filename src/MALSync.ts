@@ -902,9 +902,28 @@ ACTION: ${action} | ANIME: ${title}
 		}
 
 		// --- LIVE SYNC LOGIC (Hooks) ---
+		function mergePreEventWithBaseline(
+			e: $app.PreUpdateEntryEvent | $app.PreUpdateEntryProgressEvent | $app.PreUpdateEntryRepeatEvent,
+			baseline: $app.Anime_EntryListData | undefined,
+		): $app.Anime_EntryListData | null {
+			const out: Partial<$app.Anime_EntryListData> = { ...(baseline || {}) } as Partial<$app.Anime_EntryListData>;
 
-		async function handlePostUpdateEntry(
-			e: $app.PostUpdateEntryEvent | $app.PostUpdateEntryProgressEvent | $app.PostUpdateEntryRepeatEvent
+			if ("progress" in e && e.progress !== undefined) out.progress = e.progress;
+			if ("status" in e && e.status !== undefined) out.status = e.status;
+			if ("scoreRaw" in e && e.scoreRaw !== undefined) out.score = e.scoreRaw;
+			if ("repeat" in e && e.repeat !== undefined) out.repeat = e.repeat;
+
+			const hasAny =
+				out.progress !== undefined ||
+				out.status !== undefined ||
+				out.score !== undefined ||
+				out.repeat !== undefined;
+			if (!hasAny) return null;
+			return out as $app.Anime_EntryListData;
+		}
+
+		async function handlePreUpdateEntry(
+			e: $app.PreUpdateEntryEvent | $app.PreUpdateEntryProgressEvent | $app.PreUpdateEntryRepeatEvent,
 		) {
 			// FEATURE: Check Live Sync Setting
 			const liveEnabled = $storage.get("malsync.liveSync") ?? true;
@@ -923,15 +942,13 @@ ACTION: ${action} | ANIME: ${title}
 			addLog(`Auto-Syncing: ${title}...`, "info");
 
 			const entry = await ctx.anime.getAnimeEntry(e.mediaId);
-			const aniItem = entry.listData;
+			const aniItem = mergePreEventWithBaseline(e, entry.listData);
 
 			try {
-				await $_wait(1000); 
-
 				const fieldsParam = "fields=list_status{status,score,num_episodes_watched,is_rewatching,num_times_rewatched}";
 				const url = `${BASE_URI_V2}/anime/${malId}?${fieldsParam}`;
 				
-				let malItem = null;
+				let malItem: any = null;
 				try {
 					const res = await ctx.fetch(url, { headers: await tokenManager.withAuthHeaders() });
 					if(res.ok) {
@@ -1000,24 +1017,24 @@ ACTION: ${action} | ANIME: ${title}
 			}
 		}
 
-		$store.watch("POST_UPDATE_ENTRY", handlePostUpdateEntry);
-		$store.watch("POST_UPDATE_ENTRY_PROGRESS", handlePostUpdateEntry);
-		$store.watch("POST_UPDATE_ENTRY_REPEAT", handlePostUpdateEntry);
+		$store.watch("PRE_UPDATE_ENTRY", handlePreUpdateEntry);
+		$store.watch("PRE_UPDATE_ENTRY_PROGRESS", handlePreUpdateEntry);
+		$store.watch("PRE_UPDATE_ENTRY_REPEAT", handlePreUpdateEntry);
 	});
 
 	// --- HOOKS ---
-	$app.onPostUpdateEntry((e) => {
-		$store.set("POST_UPDATE_ENTRY", $clone(e));
+	$app.onPreUpdateEntry((e) => {
+		$store.set("PRE_UPDATE_ENTRY", $clone(e));
 		e.next();
 	});
 
-	$app.onPostUpdateEntryProgress((e) => {
-		$store.set("POST_UPDATE_ENTRY_PROGRESS", $clone(e));
+	$app.onPreUpdateEntryProgress((e) => {
+		$store.set("PRE_UPDATE_ENTRY_PROGRESS", $clone(e));
 		e.next();
 	});
 
-	$app.onPostUpdateEntryRepeat((e) => {
-		$store.set("POST_UPDATE_ENTRY_REPEAT", $clone(e));
+	$app.onPreUpdateEntryRepeat((e) => {
+		$store.set("PRE_UPDATE_ENTRY_REPEAT", $clone(e));
 		e.next();
 	});
 }
